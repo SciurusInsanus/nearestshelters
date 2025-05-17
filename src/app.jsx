@@ -1,6 +1,4 @@
-// Updated full code with type switch and correct volunteer message logic
-
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 const pickupPoints = [
   { name: "Мария", address: "Боровское шоссе, д.2к7", coords: [55.661496, 37.415622], phone: "+79639764558", nearestMetro: "Говорово", type: "volunteer" },
@@ -17,7 +15,7 @@ const pickupPoints = [
   { name: "Синица", address: "ул. Маршала Неделина, д.16с5", coords: [55.724403, 37.410654], workingHours: "9:00-21:00. Передать помощь в данный пункт сбора можно в часы работы клиники без каких-либо предварительных договорённостей", nearestMetro: "Молодежная", type: "vet" },
   { name: "Пара капибар", address: "ул.Народного ополчения, д.48к1", coords: [55.794032, 37.495078], workingHours: "круглосуточно. Передать помощь в данный пункт сбора можно в любое удобное время без каких-либо предварительных договорённостей", nearestMetro: "Октябрьское поле", type: "vet" },
   { name: "Лама рядом", address: "ул.Гродненская, д.10", coords: [55.718076, 37.433597], workingHours: "круглосуточно. Передать помощь в данный пункт сбора можно в любое удобное время без каких-либо предварительных договорённостей", nearestMetro: "Давыдково", type: "vet" },
-  { name: "Наш офис", address: "ул.Коцюбинского, д.4", coords: [55.728591, 37.431235], workingHours: "10:00-18:00 по будним дням. Перед приездом просим вас согласовать время посещения в ответном письме или по телефону офиса: +79850667749", nearestMetro: "Кунцевская", type: "office" },
+  { name: "Наш офис", address: "ул.Коцюбинского, д.4", coords: [55.728591, 37.431235], workingHours: "10:00-18:00 по будним дням. Перед приездом просим вас согласовать время посещения в ответном письме или по телефону офиса: +79850667749", nearestMetro: "Кунцевская", type: "office" }
 ];
 
 const toRad = (val) => (val * Math.PI) / 180;
@@ -25,9 +23,7 @@ const haversineDistance = ([lat1, lon1], [lat2, lon2]) => {
   const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
@@ -47,6 +43,8 @@ const NearestPickupPoint = () => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState("");
+  const [copied, setCopied] = useState(false);
+  const letterRef = useRef(null);
 
   const handleSearch = async () => {
     setLoading(true);
@@ -72,13 +70,13 @@ const NearestPickupPoint = () => {
             volunteerCount += 1;
             return `- у нашего волонтёра в районе м. ${point.nearestMetro}, контакт: ${point.phone}, ${point.name}.`;
           case "vet":
-            return `- в ветеринарной клинике "${point.name}" по адресу ${point.address}, режим работы: ${point.workingHours}.`;
+            return `- в ветеринарной клинике \"${point.name}\" по адресу ${point.address}, режим работы: ${point.workingHours}.`;
           case "shop":
-            return `- в зоомагазине "${point.name}" по адресу ${point.address}, режим работы: ${point.workingHours}.`;
+            return `- в зоомагазине \"${point.name}\" по адресу ${point.address}, режим работы: ${point.workingHours}.`;
           case "office":
             return `- в офисе нашего фонда по адресу ${point.address}, часы работы: ${point.workingHours}.`;
           default:
-            return `- в пункте сбора "${point.name}" по адресу ${point.address}.`;
+            return `- в пункте сбора \"${point.name}\" по адресу ${point.address}.`;
         }
       })
       .join("\n");
@@ -108,6 +106,26 @@ ${volunteerMessage}
 Спасибо!`;
   };
 
+  const handleCopy = () => {
+    const text = letterRef.current?.textContent;
+    if (!text) return;
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      const successful = document.execCommand("copy");
+      if (successful) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch (err) {
+      console.error("Не удалось скопировать", err);
+    }
+    document.body.removeChild(textarea);
+  };
+
   return (
     <div className="p-4 max-w-xl mx-auto bg-white shadow rounded-xl">
       <h2 className="text-xl font-bold mb-4">Поиск ближайшего пункта сбора</h2>
@@ -127,10 +145,7 @@ ${volunteerMessage}
         onChange={(e) => setUsername(e.target.value)}
       />
 
-      <button
-        onClick={handleSearch}
-        className="p-2 bg-blue-500 text-white rounded"
-      >
+      <button onClick={handleSearch} className="p-2 bg-blue-500 text-white rounded">
         Найти пункт
       </button>
 
@@ -141,15 +156,19 @@ ${volunteerMessage}
           <p className="font-bold">Ближайшие пункты:</p>
           <ul>
             {result.nearestPoints.map((point, index) => (
-              <li key={index}>
-                {point.name} — {point.distance} км
-              </li>
+              <li key={index}>{point.name} — {point.distance} км</li>
             ))}
           </ul>
 
           <div className="mt-4 p-2 bg-gray-100 rounded">
             <p className="font-bold">✉️ Сгенерированное письмо:</p>
-            <pre className="bg-white p-4 border rounded text-sm">{generateLetter()}</pre>
+            <pre ref={letterRef} className="bg-white p-4 border rounded text-sm whitespace-pre-wrap">{generateLetter()}</pre>
+            <button
+              onClick={handleCopy}
+              className="mt-2 p-2 bg-green-500 text-white rounded"
+            >
+              {copied ? "✅ Скопировано" : "📋 Копировать письмо"}
+            </button>
           </div>
         </div>
       ) : null}
@@ -158,4 +177,3 @@ ${volunteerMessage}
 };
 
 export default NearestPickupPoint;
-
