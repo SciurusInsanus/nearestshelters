@@ -1,127 +1,162 @@
+// Updated full code with type switch and correct volunteer message logic
+
 import React, { useState } from "react";
 
+const pickupPoints = [
+  { name: "Мария", address: "Боровское шоссе, д.2к7", coords: [55.661496, 37.415622], phone: "+79639764558", nearestMetro: "Говорово", type: "volunteer" },
+  { name: "Елена", address: "ул. Кусковская, д.17", coords: [55.739407, 37.777419], phone: "+79032322433", nearestMetro: "Перово", type: "volunteer" },
+  { name: "Дарья", address: "Варшавское шоссе, д.141к13", coords: [55.587779, 37.603415], phone: "+79104742988", nearestMetro: "Аннино", type: "volunteer" },
+  { name: "Елена", address: "Болотниковская улица, 10А", coords: [55.657306, 37.609991], phone: "+79169798613", nearestMetro: "Нахимовский проспект", type: "volunteer" },
+  { name: "Галина", address: "ул. Константина Федина, д 8", coords: [55.805827, 37.794064], phone: "+79169810644", nearestMetro: "Щёлковская", type: "volunteer" },
+  { name: "Анастасия", address: "2-я Хуторская улица, д. 18к2", coords: [55.806762, 37.575109], phone: "+79262113585", nearestMetro: "Дмитровская", type: "volunteer" },
+  { name: "Янош", address: "Ленинский проспект, д.93", coords: [55.675245, 37.527920], phone: "+79031637020", nearestMetro: "Новаторская", type: "volunteer" },
+  { name: "Хитрый нос", address: "Ярославское шоссе 12к2", coords: [55.854517, 37.683060], workingHours: "10:00-22:00", nearestMetro: "Ростокино", type: "shop" },
+  { name: "Dr.Vetson", address: "Балаклавский проспект, д. 9", coords: [55.641122, 37.595501], workingHours: "круглосуточно. Передать помощь в данный пункт сбора можно в любое удобное время без каких-либо предварительных договорённостей", nearestMetro: "Чертановская", type: "vet" },
+  { name: "Dr.Hug", address: "ул. Малая Филёвская, д.12к1", coords: [55.738302, 37.472917], workingHours: "круглосуточно", nearestMetro: "Пионерская", type: "vet" },
+  { name: "Dr.Hug", address: "Хорошёвское шоссе, д. 38Дс3", coords: [55.781003, 37.537550], workingHours: "круглосуточно", nearestMetro: "ЦСКА", type: "vet" },
+  { name: "Синица", address: "ул. Маршала Неделина, д.16с5", coords: [55.724403, 37.410654], workingHours: "9:00-21:00", nearestMetro: "Молодежная", type: "vet" },
+  { name: "Пара капибар", address: "ул.Народного ополчения, д.48к1", coords: [55.794032, 37.495078], workingHours: "круглосуточно", nearestMetro: "Октябрьское поле", type: "vet" },
+  { name: "Лама рядом", address: "ул.Гродненская, д.10", coords: [55.718076, 37.433597], workingHours: "круглосуточно", nearestMetro: "Давыдково", type: "vet" },
+  { name: "Наш офис", address: "ул.Коцюбинского, д.4", coords: [55.728591, 37.431235], workingHours: "10:00-18:00 по будним дням", nearestMetro: "Кунцевская", type: "office" },
+];
+
+const toRad = (val) => (val * Math.PI) / 180;
 const haversineDistance = ([lat1, lon1], [lat2, lon2]) => {
-  const toRad = (val) => (val * Math.PI) / 180;
-  const R = 6371; // Радиус Земли в километрах
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Возвращаем расстояние в километрах
+  return R * c;
 };
 
-// Убедимся, что в адресах корректно возвращаются координаты
-const fetchCoords = async (address) => {
-  const apiKey = "74796fe5-c44e-403a-b715-a6e954b3118e"; // 🔑 Вставьте сюда свой API-ключ
-  const url = `https://geocode-maps.yandex.ru/1.x/?format=json&apikey=${apiKey}&geocode=${encodeURIComponent(address)}, Москва`;
+const fetchCoords = async (stationName) => {
+  const apiKey = "74796fe5-c44e-403a-b715-a6e954b3118e";
+  const url = `https://geocode-maps.yandex.ru/1.x/?format=json&apikey=${apiKey}&geocode=метро ${encodeURIComponent(stationName)}, Москва`;
   const res = await fetch(url);
   const data = await res.json();
-  
-  if (!data.response.GeoObjectCollection.featureMember.length) {
-    throw new Error('Координаты не найдены');
-  }
-
   const pos = data.response.GeoObjectCollection.featureMember[0].GeoObject.Point.pos;
   const [lon, lat] = pos.split(" ").map(Number);
-  
-  // Выведем координаты для проверки
-  console.log(`Координаты для адреса "${address}":`, lat, lon);
-
   return [lat, lon];
 };
 
-const ShelterSearch = () => {
+const NearestPickupPoint = () => {
   const [station, setStation] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  const shelters = [
-    { name: "Айка", address: "Московская обл., Рузский р-он, пос. Бороденки, ул. Сосновая, д.24" },
-    { name: "БелоПес", address: "Московская область Луховицкий округ, посёлок Белоомут, СНТ Звезда, 62 участок" },
-    { name: "Беригиня", address: "г.о. Наро-Фоминский, д. Скугорово, ул. Дачная, 21. Координаты: 55.479413, 36.509892" },
-    { name: "Биозона", address: "пгт Белоозерский, Воскресенский район Московской области, ул. Коммунальная, д.7" },
-    { name: "Бирюлево", address: "Востряковский пр-д, вл. 10А" },
-    { name: "Татьяна Бурдова", address: "Тульская область, Заокский р-н, д. Железня, уч. 101. (Для навигатора - дом 95)" },
-    { name: "Верные друзья", address: "г.Калуга ул.Азаровская д.46 к.2." },
-    { name: "Волонтеры Одинцово", address: "Москва" }, // Пример, укажите актуальные данные
-    // Добавьте другие приюты...
-  ];
+  const [username, setUsername] = useState("");
 
   const handleSearch = async () => {
     setLoading(true);
     try {
-      // Получаем координаты станции
       const stationCoords = await fetchCoords(station);
-
-      // Получаем координаты для каждого приюта и рассчитываем расстояния
-      const distances = await Promise.all(
-        shelters.map(async (shelter) => {
-          const shelterCoords = await fetchCoords(shelter.address);
-          return {
-            ...shelter,
-            distance: haversineDistance(stationCoords, shelterCoords),
-          };
-        })
-      );
-
-      // Сортируем приюты по расстоянию
+      const distances = pickupPoints.map((p) => ({ ...p, distance: haversineDistance(stationCoords, p.coords) }));
       const sorted = distances.sort((a, b) => a.distance - b.distance);
-
-      // Выводим все приюты с расстояниями для отладки
-      console.log('Все приюты с расстояниями:', sorted);
-
-      let nearestShelters;
-      if (sorted[0].distance <= 1.5) {
-        nearestShelters = [sorted[0]]; // Показать ближайший приют
-      } else {
-        nearestShelters = sorted.slice(0, 2); // Можно изменить на количество приютов, которое нужно показывать
-      }
-
-      setResult({ nearestShelters, stationCoords });
-    } catch (e) {
-      alert("Ошибка при геокодировании адресов.");
-      console.error(e);
+      const nearestPoints = sorted[0].distance <= 1.5 ? [sorted[0]] : sorted.slice(0, 2);
+      setResult({ nearestPoints: nearestPoints.map((p) => ({ ...p, distance: p.distance.toFixed(2) })) });
+    } catch {
+      alert("Ошибка при геокодировании станции.");
     }
     setLoading(false);
   };
 
-  return (
-    <div>
-      <h1>Поиск ближайших приютов</h1>
-      <div>
-        <label>
-          Введите адрес станции метро или населённого пункта:
-          <input
-            type="text"
-            value={station}
-            onChange={(e) => setStation(e.target.value)}
-          />
-        </label>
-        <button onClick={handleSearch} disabled={loading}>
-          {loading ? "Загружается..." : "Найти приюты"}
-        </button>
-      </div>
+  const generateLetter = () => {
+    if (!result) return "";
+    let volunteerCount = 0;
+    const letterBody = result.nearestPoints
+      .map((point) => {
+        switch (point.type) {
+          case "volunteer":
+            volunteerCount += 1;
+            return `- у нашего волонтёра в районе м. ${point.nearestMetro}, контакт: ${point.phone}, ${point.name}.`;
+          case "vet":
+            return `- в ветеринарной клинике "${point.name}" по адресу ${point.address}, режим работы: ${point.workingHours}.`;
+          case "shop":
+            return `- в зоомагазине "${point.name}" по адресу ${point.address}, режим работы: ${point.workingHours}.`;
+          case "office":
+            return `- в офисе нашего фонда по адресу ${point.address}, часы работы: ${point.workingHours}.`;
+          default:
+            return `- в пункте сбора "${point.name}" по адресу ${point.address}.`;
+        }
+      })
+      .join("\n");
 
-      {result && (
-        <div>
-          <h2>Ближайшие приюты:</h2>
+    let volunteerMessage = "";
+    if (volunteerCount === 1) {
+      volunteerMessage = "Не затруднит ли вас связаться с волонтёром самостоятельно, чтобы согласовать все детали напрямую? При обращении можете сказать, что контакт вам дали в фонде 'РЭЙ'.";
+    } else if (volunteerCount === 2) {
+      volunteerMessage = "Не затруднит ли вас связаться с выбранным волонтёром самостоятельно, чтобы согласовать все детали напрямую? При обращении можете сказать, что контакт вам дали в фонде 'РЭЙ'.";
+    } else if (volunteerCount > 2) {
+      volunteerMessage = "Пожалуйста, свяжитесь с одним из волонтёров напрямую. При обращении можете сказать, что контакт вам дали в фонде 'РЭЙ'.";
+    }
+
+    return `${username}, добрый день!
+
+Благодарим вас за неравнодушие к бездомным животным и обращение в наш фонд!
+
+Перечисленные вами вещи с радостью примут в приютах!
+
+Мы будем вам очень признательны, если вы сможете передать их в один из пунктов сбора помощи, расположенных в следующих местах:
+
+${letterBody}
+
+${volunteerMessage}
+
+Если передать помощь не получится по какой-либо причине, пожалуйста, напишите нам снова.
+
+Спасибо!`;
+  };
+
+  return (
+    <div className="p-4 max-w-xl mx-auto bg-white shadow rounded-xl">
+      <h2 className="text-xl font-bold mb-4">Поиск ближайшего пункта сбора</h2>
+
+      <input
+        type="text"
+        placeholder="Введите станцию метро (например, Октябрьское поле)"
+        className="p-2 mb-4 border border-gray-300 rounded"
+        value={station}
+        onChange={(e) => setStation(e.target.value)}
+      />
+      <input
+        type="text"
+        placeholder="Введите ваше имя"
+        className="p-2 mb-4 border border-gray-300 rounded"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+      />
+
+      <button
+        onClick={handleSearch}
+        className="p-2 bg-blue-500 text-white rounded"
+      >
+        Найти пункт
+      </button>
+
+      {loading ? (
+        <div className="mt-4 p-2 text-gray-500">Загрузка...</div>
+      ) : result ? (
+        <div className="mt-4 p-2 bg-gray-100 rounded">
+          <p className="font-bold">Ближайшие пункты:</p>
           <ul>
-            {result.nearestShelters.map((shelter, index) => (
+            {result.nearestPoints.map((point, index) => (
               <li key={index}>
-                <strong>{shelter.name}</strong>
-                <br />
-                Адрес: {shelter.address}
-                <br />
-                Расстояние: {shelter.distance.toFixed(2)} км
+                {point.name} — {point.distance} км
               </li>
             ))}
           </ul>
+
+          <div className="mt-4 p-2 bg-gray-100 rounded">
+            <p className="font-bold">✉️ Сгенерированное письмо:</p>
+            <pre className="bg-white p-4 border rounded text-sm">{generateLetter()}</pre>
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };
 
-export default ShelterSearch;
+export default NearestPickupPoint;
+
