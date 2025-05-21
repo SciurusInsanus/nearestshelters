@@ -28,9 +28,7 @@ const haversineDistance = ([lat1, lon1], [lat2, lon2]) => {
 
 const fetchCoords = async (stationName) => {
   const apiKey = "74796fe5-c44e-403a-b715-a6e954b3118e";
-  const url = `https://geocode-maps.yandex.ru/1.x/?format=json&apikey=${apiKey}&geocode=метро ${encodeURIComponent(
-    stationName
-  )}, Москва`;
+  const url = `https://geocode-maps.yandex.ru/1.x/?format=json&apikey=${apiKey}&geocode=метро ${encodeURIComponent(stationName)}, Москва`;
   const res = await fetch(url);
   const data = await res.json();
   const pos = data.response.GeoObjectCollection.featureMember[0].GeoObject.Point.pos;
@@ -44,6 +42,8 @@ const NearestShelters = () => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [cantDeliver, setCantDeliver] = useState(false);
+  const [isVolunteer, setIsVolunteer] = useState(false);
+  const [isMinorVolunteer, setIsMinorVolunteer] = useState(false);
 
   const handleSearch = async () => {
     setLoading(true);
@@ -69,6 +69,24 @@ const NearestShelters = () => {
   const generateLetter = () => {
     if (!result) return "";
     const { nearest } = result;
+
+    if (isVolunteer || isMinorVolunteer) {
+      return `${username}, добрый день!
+
+Благодарим вас за желание помогать животным вместе с нами и обращение в наш фонд!
+
+Ближайший к вам приют, где возможен уход за животными, находится в районе ${nearest[0].district}. Там всегда рады волонтерам. Очень нужна помощь в социализации, общении, кормлении и выгуле животных, в поиске дома и хозяев для них.
+
+Контакт волонтера, с которым можно будет обсудить детали поездки в приют: ${nearest[0].phone}, ${nearest[0].volunteer}. Когда будете звонить, можно сказать, что контакт дали в фонде «РЭЙ».
+
+${
+  isMinorVolunteer
+    ? "Обращаем ваше внимание, что несовершеннолетних пускают в приют только в сопровождении кого-то из родителей в целях безопасности, а животных выдают на прогулки только людям старше 18 лет.\n\n"
+    : ""
+}Если по какой-то причине данный приют не подойдет, пожалуйста, сообщите нам, мы постараемся подобрать для вас другой.
+
+Спасибо!`;
+    }
 
     if (cantDeliver) {
       return `${username}, здравствуйте!
@@ -119,6 +137,27 @@ const NearestShelters = () => {
         value={username}
         onChange={(e) => setUsername(e.target.value)}
       />
+
+      <label className="block mb-2">
+        <input
+          type="checkbox"
+          className="mr-2"
+          checked={isVolunteer}
+          onChange={() => setIsVolunteer(!isVolunteer)}
+        />
+        Это волонтёр
+      </label>
+
+      <label className="block mb-2">
+        <input
+          type="checkbox"
+          className="mr-2"
+          checked={isMinorVolunteer}
+          onChange={() => setIsMinorVolunteer(!isMinorVolunteer)}
+        />
+        Это несовершеннолетний волонтёр
+      </label>
+
       <label className="block mb-4">
         <input
           type="checkbox"
@@ -126,7 +165,7 @@ const NearestShelters = () => {
           checked={cantDeliver}
           onChange={() => setCantDeliver(!cantDeliver)}
         />
-        Не хочет / не может сам везти
+        Не может сам везти
       </label>
 
       <button
